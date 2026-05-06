@@ -1,0 +1,127 @@
+# Azure DevOps Pipeline — BlazorEnvDemo
+#
+# Proves the finding: no csproj changes are needed to deploy to UAT or Production.
+# The WasmApplicationEnvironmentName MSBuild property is set per stage via a variable.
+#
+# Pipeline variables to define in ADO:
+#   (none required — WasmEnv is set inline per stage below)
+
+trigger:
+  branches:
+    include:
+      - main
+
+variables:
+  buildConfiguration: Release
+  projectPath: BlazorEnvDemo/BlazorEnvDemo.csproj
+
+stages:
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Stage 1: Build & publish the UAT artifact
+  # ─────────────────────────────────────────────────────────────────────────────
+  - stage: BuildUAT
+    displayName: Publish — UAT
+    variables:
+      WasmEnv: UAT
+    jobs:
+      - job: publish
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+
+          - task: UseDotNet@2
+            displayName: Use .NET 10 SDK
+            inputs:
+              packageType: sdk
+              version: 10.x
+
+          - task: DotNetCoreCLI@2
+            displayName: Publish Blazor WASM (UAT)
+            inputs:
+              command: publish
+              projects: $(projectPath)
+              # WasmApplicationEnvironmentName=UAT bakes "UAT" into blazor.boot.json
+              # and causes appsettings.UAT.json to be loaded by the client at runtime.
+              # No changes to the csproj or any source file are made.
+              arguments: >
+                -c $(buildConfiguration)
+                -p:WasmApplicationEnvironmentName=$(WasmEnv)
+                -o $(Build.ArtifactStagingDirectory)/$(WasmEnv)
+              zipAfterPublish: false
+              publishWebProjects: false
+
+          - task: PublishPipelineArtifact@1
+            displayName: Upload UAT artifact
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)/$(WasmEnv)
+              artifact: BlazorEnvDemo-$(WasmEnv)
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Stage 2: Build & publish the Production artifact
+  # ─────────────────────────────────────────────────────────────────────────────
+  - stage: BuildProduction
+    displayName: Publish — Production
+    dependsOn: BuildUAT
+    condition: succeeded()
+    variables:
+      WasmEnv: Production
+    jobs:
+      - job: publish
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+
+          - task: UseDotNet@2
+            displayName: Use .NET 10 SDK
+            inputs:
+              packageType: sdk
+              version: 10.x
+
+          - task: DotNetCoreCLI@2
+            displayName: Publish Blazor WASM (Production)
+            inputs:
+              command: publish
+              projects: $(projectPath)
+              arguments: >
+                -c $(buildConfiguration)
+                -p:WasmApplicationEnvironmentName=$(WasmEnv)
+                -o $(Build.ArtifactStagingDirectory)/$(WasmEnv)
+              zipAfterPublish: false
+              publishWebProjects: false
+
+          - task: PublishPipelineArtifact@1
+            displayName: Upload Production artifact
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)/$(WasmEnv)
+              artifact: BlazorEnvDemo-$(WasmEnv)
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Stage 3: Deploy UAT artifact to Azure App Service UAT slot
+  # ─────────────────────────────────────────────────────────────────────────────
+  - stage: DeployUAT
+    displayName: Deploy — UAT App Service
+    dependsOn: BuildUAT
+    condition: succeeded()
+    variables:
+      WasmEnv: UAT
+    jobs:
+      - deployment: deployUAT
+        environment: UAT
+        pool:
+          vmImage: ubuntu-latest
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: BlazorEnvDemo-$(WasmEnv)
+
+                - task: AzureWebApp@1
+                  displayName: Deploy to UAT App Service
+                  inputs:
+                    azureSubscription: $(AzureServiceConnection)
+                    appType: webApp
+                    appName: $(UatAppServiceName)
+                    # Deploy the UAT-specific artifact — client env is already "UAT" inside the bundle.
+                    package: $(Pipeline.Workspace)/BlazorEnvDemo-$(WasmEnv)/BlazorEnvDemo/wwwroot

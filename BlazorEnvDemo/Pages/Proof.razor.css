@@ -1,0 +1,62 @@
+section {
+    margin-bottom: 2rem;
+}
+
+section h2 {
+    font-size: 1.1rem;
+    margin-bottom: 0.6rem;
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 0.3rem;
+}
+
+.findings-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.findings-table th {
+    background: #f4f6f8;
+    padding: 0.4rem 0.75rem;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid #ccc;
+}
+
+.findings-table td {
+    padding: 0.4rem 0.75rem;
+    border-bottom: 1px solid #eee;
+}
+
+.note {
+    font-size: 0.82rem;
+    color: #666;
+    margin-top: 0.4rem;
+}
+
+.finding-box {
+    padding: 0.9rem 1.1rem;
+    border-radius: 6px;
+    font-size: 0.92rem;
+    line-height: 1.6;
+    margin: 0.5rem 0;
+}
+
+.finding-important {
+    background: #e8f4fd;
+    border-left: 4px solid #0d6efd;
+}
+
+.finding-warning {
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+
+pre {
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 0.8rem 1rem;
+    font-size: 0.88rem;
+    overflow-x: auto;
+}

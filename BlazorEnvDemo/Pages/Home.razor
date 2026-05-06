@@ -1,0 +1,146 @@
+@page "/"
+@inject IWebAssemblyHostEnvironment HostEnv
+@inject IOptions<AppConfig> Config
+
+<PageTitle>Home — BlazorEnvDemo</PageTitle>
+
+<h1>Blazor WASM .NET 10 — Environment Proof</h1>
+
+<p class="lead">
+    This app proves that the client environment for a standalone Blazor WebAssembly app on .NET 10
+    is determined at <strong>publish time</strong> via the
+    <code>WasmApplicationEnvironmentName</code> MSBuild property —
+    not by <code>ASPNETCORE_ENVIRONMENT</code> on the server and not by <code>launchSettings.json</code>.
+</p>
+
+<hr />
+
+<div class="proof-grid">
+
+    <!-- Card 1: Detected environment -->
+    <div class="proof-card" style="border-left: 5px solid @Config.Value.BannerColor;">
+        <h3>✅ Finding 1 — Client Environment</h3>
+        <p>
+            <code>builder.HostEnvironment.Environment</code> returns:
+        </p>
+        <div class="env-badge" style="background-color: @Config.Value.BannerColor;">
+            @HostEnv.Environment
+        </div>
+        <p class="proof-note">
+            Set this by passing <code>-p:WasmApplicationEnvironmentName=@HostEnv.Environment</code>
+            at publish time. No csproj change required.
+        </p>
+    </div>
+
+    <!-- Card 2: Correct appsettings loaded -->
+    <div class="proof-card" style="border-left: 5px solid @Config.Value.BannerColor;">
+        <h3>✅ Finding 2 — Correct appsettings loaded</h3>
+        <p>
+            The file <code>appsettings.<strong>@HostEnv.Environment</strong>.json</code> was loaded.
+            Its unique <code>EnvironmentLabel</code> value below confirms this:
+        </p>
+        <table class="config-table">
+            <tr>
+                <th>Key</th>
+                <th>Value from appsettings</th>
+            </tr>
+            <tr>
+                <td>EnvironmentLabel</td>
+                <td><strong>@Config.Value.EnvironmentLabel</strong></td>
+            </tr>
+            <tr>
+                <td>ApiBaseUrl</td>
+                <td>@Config.Value.ApiBaseUrl</td>
+            </tr>
+            <tr>
+                <td>EnableDebugPanel</td>
+                <td>@Config.Value.EnableDebugPanel</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Card 3: Environment helpers -->
+    <div class="proof-card" style="border-left: 5px solid @Config.Value.BannerColor;">
+        <h3>✅ Finding 3 — IWebAssemblyHostEnvironment helpers</h3>
+        <table class="config-table">
+            <tr>
+                <td><code>IsProduction()</code></td>
+                <td>@(HostEnv.IsProduction() ? "✅ true" : "❌ false")</td>
+            </tr>
+            <tr>
+                <td><code>IsStaging()</code></td>
+                <td>@(HostEnv.IsStaging() ? "✅ true" : "❌ false")</td>
+            </tr>
+            <tr>
+                <td><code>IsDevelopment()</code></td>
+                <td>@(HostEnv.IsDevelopment() ? "✅ true" : "❌ false")</td>
+            </tr>
+            <tr>
+                <td><code>IsEnvironment("UAT")</code></td>
+                <td>@(HostEnv.IsEnvironment("UAT") ? "✅ true" : "❌ false")</td>
+            </tr>
+        </table>
+        <p class="proof-note">
+            IsStaging() returns false for "UAT" — use <code>IsEnvironment("UAT")</code> for custom names.
+        </p>
+    </div>
+
+    <!-- Card 4: Debug panel (feature-flagged by environment) -->
+    @if (Config.Value.EnableDebugPanel)
+    {
+        <div class="proof-card proof-card-debug" style="border-left: 5px solid #fd7e14;">
+            <h3>🐛 Finding 4 — Feature Flag via appsettings</h3>
+            <p>
+                <code>EnableDebugPanel</code> is <strong>true</strong> in this environment.
+                This panel is <strong>not visible in Production</strong> where the flag is false.
+                Proves that configuration-driven features work correctly per environment.
+            </p>
+            <p>Base address: <code>@HostEnv.BaseAddress</code></p>
+        </div>
+    }
+    else
+    {
+        <div class="proof-card proof-card-debug" style="border-left: 5px solid #6c757d; opacity: 0.6;">
+            <h3>🐛 Finding 4 — Feature Flag via appsettings</h3>
+            <p>
+                <code>EnableDebugPanel</code> is <strong>false</strong> in Production.
+                This card would be styled differently (and show debug info) in Development or UAT.
+            </p>
+        </div>
+    }
+
+</div>
+
+<hr />
+
+<h2>How to Switch Environments</h2>
+
+<div class="command-block">
+    <p><strong>Development (dotnet run, default):</strong></p>
+    <pre><code>dotnet run</code></pre>
+</div>
+
+<div class="command-block">
+    <p><strong>UAT publish (no csproj change needed):</strong></p>
+    <pre><code>dotnet publish -c Release -p:WasmApplicationEnvironmentName=UAT -o ./publish/UAT</code></pre>
+</div>
+
+<div class="command-block">
+    <p><strong>Production publish:</strong></p>
+    <pre><code>dotnet publish -c Release -p:WasmApplicationEnvironmentName=Production -o ./publish/Production</code></pre>
+</div>
+
+<p>
+    After publish, open <code>./publish/UAT/wwwroot/index.html</code> via a local HTTP server
+    and check the banner color and config table above — they will differ from Production.
+</p>
+
+<p>
+    Also open the browser DevTools console to see the environment/config log written in
+    <a href="https://github.com" target="_blank"><code>Program.cs</code></a>:
+</p>
+<pre><code>╔══════════════════════════════════════════════════╗
+║ Client Environment : UAT                         ║
+║ API Base URL       : https://uat-api.example.com ║
+║ Environment Label  : UAT — appsettings.UAT.json  ║
+╚══════════════════════════════════════════════════╝</code></pre>

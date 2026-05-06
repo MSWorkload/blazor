@@ -1,0 +1,120 @@
+@page "/proof"
+@inject IWebAssemblyHostEnvironment HostEnv
+@inject IOptions<AppConfig> Config
+
+<PageTitle>Findings Proof — BlazorEnvDemo</PageTitle>
+
+<h1>🔬 Detailed Findings Proof</h1>
+
+<p>This page explains each finding from the review and shows live evidence using this running instance.</p>
+
+<section>
+    <h2>Finding: Environment defaults</h2>
+    <table class="findings-table">
+        <thead>
+            <tr>
+                <th>Scenario</th>
+                <th>Expected Client Env</th>
+                <th>This Instance</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>dotnet run</code> (no property set)</td>
+                <td>Development</td>
+                <td>@(HostEnv.IsDevelopment() ? "✅ Development" : "N/A")</td>
+            </tr>
+            <tr>
+                <td><code>dotnet publish</code> (no property set)</td>
+                <td>Production</td>
+                <td>@(HostEnv.IsProduction() ? "✅ Production" : "N/A")</td>
+            </tr>
+            <tr>
+                <td><code>dotnet publish -p:WasmApplicationEnvironmentName=UAT</code></td>
+                <td>UAT</td>
+                <td>@(HostEnv.IsEnvironment("UAT") ? "✅ UAT" : "N/A")</td>
+            </tr>
+        </tbody>
+    </table>
+    <p class="note">Only one row will show ✅ — that's the row matching how this instance was built/published.</p>
+</section>
+
+<section>
+    <h2>Finding: Server ASPNETCORE_ENVIRONMENT does NOT set client bundle env</h2>
+    <div class="finding-box finding-important">
+        <strong>Key insight:</strong> <code>ASPNETCORE_ENVIRONMENT=UAT</code> on Azure App Service
+        or IIS controls only the <em>server-side</em> runtime (API, middleware, configuration).
+        The client-side Blazor WASM bundle reads its environment from the
+        <code>blazor.boot.json</code> artifact baked in at publish time.
+        <br /><br />
+        <strong>Proof:</strong> This page's environment is <code>@HostEnv.Environment</code>.
+        If this were changed solely by App Service's application setting, it would always
+        change live without republishing — but it does not. Only republishing with a different
+        <code>WasmApplicationEnvironmentName</code> changes it.
+    </div>
+</section>
+
+<section>
+    <h2>Finding: launchSettings.json is ignored at publish</h2>
+    <div class="finding-box finding-warning">
+        <strong><code>Properties/launchSettings.json</code> sets the environment for
+        <code>dotnet run</code> only.</strong> It is never read during
+        <code>dotnet publish</code>. Relying on it to set UAT or Production environments
+        for deployed artifacts will always fail silently — the client bundle will fall back to
+        <code>Production</code>.
+    </div>
+    <p>
+        See <code>Properties/launchSettings.json</code> in this project — it sets
+        <code>ASPNETCORE_ENVIRONMENT=Development</code> for the local dev server.
+        That has no effect on any published output.
+    </p>
+</section>
+
+<section>
+    <h2>Finding: Pipeline-driven publish (zero repo commits)</h2>
+    <p>The following publish command was used to produce this instance (or would be in its pipeline stage):</p>
+    <pre><code>dotnet publish BlazorEnvDemo.csproj \
+    -c Release \
+    -p:WasmApplicationEnvironmentName=@HostEnv.Environment \
+    -o ./publish/@HostEnv.Environment</code></pre>
+    <p>
+        No <code>.csproj</code> changes, no <code>appsettings</code> commits, no branch per environment needed.
+        The stage variable drives everything.
+    </p>
+</section>
+
+<section>
+    <h2>Live Configuration Values</h2>
+    <p>These values come from <code>appsettings.<strong>@HostEnv.Environment</strong>.json</code>
+    (loaded because <code>HostEnvironment.Environment == "@HostEnv.Environment"</code>):</p>
+    <table class="findings-table">
+        <thead>
+            <tr><th>Property</th><th>Value</th><th>Source file</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>EnvironmentLabel</td>
+                <td><strong>@Config.Value.EnvironmentLabel</strong></td>
+                <td>appsettings.@(HostEnv.Environment).json</td>
+            </tr>
+            <tr>
+                <td>ApiBaseUrl</td>
+                <td>@Config.Value.ApiBaseUrl</td>
+                <td>appsettings.@(HostEnv.Environment).json</td>
+            </tr>
+            <tr>
+                <td>EnableDebugPanel</td>
+                <td>@Config.Value.EnableDebugPanel</td>
+                <td>appsettings.@(HostEnv.Environment).json</td>
+            </tr>
+            <tr>
+                <td>BannerColor</td>
+                <td>
+                    <span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:@Config.Value.BannerColor;vertical-align:middle;margin-right:4px;"></span>
+                    @Config.Value.BannerColor
+                </td>
+                <td>appsettings.@(HostEnv.Environment).json</td>
+            </tr>
+        </tbody>
+    </table>
+</section>

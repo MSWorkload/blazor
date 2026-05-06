@@ -1,0 +1,132 @@
+@page "/traps"
+
+<PageTitle>Common Traps — BlazorEnvDemo</PageTitle>
+
+<h1>⚠️ Common Traps — Demonstrated</h1>
+
+<p>
+    Each trap below is a real mistake developers make when trying to set the client environment
+    for Blazor WASM without using <code>WasmApplicationEnvironmentName</code>.
+    This page pairs each trap with an explanation of why it fails.
+</p>
+
+<div class="trap-list">
+
+    <div class="trap-card trap-fail">
+        <div class="trap-header">
+            <span class="trap-status">❌ Trap 1</span>
+            <strong>Naming a publish profile "UAT" without setting the WASM property</strong>
+        </div>
+        <p>
+            A publish profile named <code>UAT.pubxml</code> with no <code>WasmApplicationEnvironmentName</code>
+            has no effect on the client bundle environment. The name of the profile is cosmetic only.
+        </p>
+        <pre><code>&lt;!-- UAT.pubxml — THIS DOES NOTHING for the client env --&gt;
+&lt;PropertyGroup&gt;
+  &lt;PublishProvider&gt;FileSystem&lt;/PublishProvider&gt;
+  &lt;!-- Missing: WasmApplicationEnvironmentName --&gt;
+&lt;/PropertyGroup&gt;</code></pre>
+        <p class="fix">
+            ✅ Fix: Add <code>&lt;WasmApplicationEnvironmentName&gt;UAT&lt;/WasmApplicationEnvironmentName&gt;</code>
+            inside the PropertyGroup, or pass it at the command line.
+        </p>
+    </div>
+
+    <div class="trap-card trap-fail">
+        <div class="trap-header">
+            <span class="trap-status">❌ Trap 2</span>
+            <strong>Setting only ASPNETCORE_ENVIRONMENT on Azure App Service</strong>
+        </div>
+        <p>
+            App Service Application Settings like <code>ASPNETCORE_ENVIRONMENT = UAT</code> affect
+            the <em>server process</em> only (configuration loading, middleware, hosted services).
+            The Blazor WASM client is a static bundle — it was already compiled with an environment
+            baked in. The app setting does not republish the client.
+        </p>
+        <div class="finding-box finding-warning">
+            Server → UAT ✅ &nbsp;|&nbsp; Client bundle → still Production ❌
+        </div>
+        <p class="fix">
+            ✅ Fix: Publish a separate artifact per environment using
+            <code>-p:WasmApplicationEnvironmentName=UAT</code>. Deploy the UAT artifact to the UAT slot.
+        </p>
+    </div>
+
+    <div class="trap-card trap-fail">
+        <div class="trap-header">
+            <span class="trap-status">❌ Trap 3</span>
+            <strong>Using launchSettings.json to control publish environment</strong>
+        </div>
+        <p>
+            <code>Properties/launchSettings.json</code> is a developer convenience file. The .NET SDK
+            explicitly ignores it during <code>dotnet publish</code>. Changing
+            <code>ASPNETCORE_ENVIRONMENT</code> there will not affect any deployed build.
+        </p>
+        <pre><code>// launchSettings.json — IGNORED during dotnet publish
+{
+  "profiles": {
+    "UAT": {
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "UAT"   // ← has zero effect on publish output
+      }
+    }
+  }
+}</code></pre>
+        <p class="fix">
+            ✅ Fix: Drive the environment from the pipeline using
+            <code>dotnet publish -p:WasmApplicationEnvironmentName=$(WasmEnv)</code>.
+        </p>
+    </div>
+
+    <div class="trap-card trap-fail">
+        <div class="trap-header">
+            <span class="trap-status">❌ Trap 4</span>
+            <strong>Placing appsettings.UAT.json in the project root (not wwwroot)</strong>
+        </div>
+        <p>
+            For standalone Blazor WASM, configuration files must be in
+            <code>wwwroot/</code> so that the browser can fetch them as static assets.
+            A file at the project root is not served to the browser.
+        </p>
+        <pre><code>BlazorApp/
+├── appsettings.UAT.json     ← ❌ not served to browser
+└── wwwroot/
+    └── appsettings.UAT.json ← ✅ correct location</code></pre>
+        <p class="fix">
+            ✅ Fix: Move all client appsettings files under <code>wwwroot/</code>.
+        </p>
+    </div>
+
+    <div class="trap-card trap-fail">
+        <div class="trap-header">
+            <span class="trap-status">❌ Trap 5</span>
+            <strong>Expecting one published output to serve all environments</strong>
+        </div>
+        <p>
+            The client environment and appsettings selection are baked into the publish output
+            (specifically <code>blazor.boot.json</code> and the loaded configuration).
+            You cannot deploy one artifact to UAT and Production and have each load different settings.
+        </p>
+        <p class="fix">
+            ✅ Fix: Publish separate artifacts per environment and deploy the matching artifact to
+            the matching slot. Use pipeline stage variables to parameterise <code>WasmApplicationEnvironmentName</code>.
+        </p>
+    </div>
+
+    <div class="trap-card trap-fail">
+        <div class="trap-header">
+            <span class="trap-status">❌ Trap 6</span>
+            <strong>Having appsettings.UAT.json in the repo but not publishing it</strong>
+        </div>
+        <p>
+            If <code>appsettings.UAT.json</code> is not included in the publish output
+            (due to implicit exclusion or misconfiguration), the WASM runtime will silently
+            fall back to <code>appsettings.json</code> only—with no error.
+        </p>
+        <p class="fix">
+            ✅ Fix: Add an explicit <code>&lt;None Include=...&gt;</code> item in the csproj
+            with <code>CopyToPublishDirectory="PreserveNewest"</code> (already done in this project).
+        </p>
+    </div>
+
+</div>
