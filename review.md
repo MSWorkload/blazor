@@ -3,6 +3,8 @@
 > [!summary]
 > For Blazor WebAssembly on .NET 10, client environment is selected at build or publish time. You can avoid csproj commits by setting the environment in the pipeline with `/p:WasmApplicationEnvironmentName=...` per stage.
 
+https://learn.microsoft.com/en-us/aspnet/core/migration/90-to-100?view=aspnetcore-10.0&tabs=visual-studio#blazor-release-notes
+
 ---
 
 ## Usage Commands
