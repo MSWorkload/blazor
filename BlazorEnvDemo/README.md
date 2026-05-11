@@ -5,6 +5,8 @@ A standalone Blazor WebAssembly application on **.NET 10** that proves the findi
 
 ---
 
+
+
 ## What This Proves
 
 | Finding | Evidence in This App |
